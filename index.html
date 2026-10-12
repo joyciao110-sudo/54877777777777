@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文字地下城</title>
+<style>
+:root{color-scheme:dark;--bg:#10131c;--panel:#1b2030;--border:#343c52;--text:#e8ecf8;--muted:#9ba7c2;--green:#6ee7a0;--red:#ff727f;--gold:#ffd166;--blue:#79b8ff}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:22px 12px;background:radial-gradient(ellipse at top,#222943 0%,transparent 60%),var(--bg);color:var(--text);font-family:Consolas,"Courier New",monospace}
+.game{width:min(760px,100%);margin:auto}header{text-align:center;margin-bottom:18px}h1{color:var(--gold);font-size:clamp(26px,5vw,36px);margin:0 0 8px}header p{color:var(--muted);font:14px system-ui;margin:0}
+.panel{border:1px solid var(--border);background:rgba(27,32,48,.96);border-radius:14px;padding:15px;margin-bottom:13px;box-shadow:0 8px 28px #0003}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{padding:10px;border-radius:9px;background:#111624;text-align:center}.stat-label{color:var(--muted);font-size:12px;margin-bottom:6px}.stat-value{font-size:20px;font-weight:bold}
+#hp{color:var(--green)}#enemyCount{color:var(--red)}#turn{color:var(--blue)}
+.map-wrap{overflow-x:auto;text-align:center;padding:8px 0}#map{display:inline-block;white-space:pre;text-align:left;font-size:clamp(12px,2.5vw,20px);line-height:1.45;letter-spacing:.08em;margin:0;color:#cbd5e1;user-select:none}
+.player-tile{display:inline-block;color:hsl(var(--rainbow-hue,0deg) 100% 65%);font-weight:900;text-shadow:0 0 5px currentColor,0 0 12px currentColor;animation:rainbow 1.8s linear infinite}
+@keyframes rainbow{0%{color:#ff4d6d;text-shadow:0 0 5px #ff4d6d,0 0 12px #ff4d6d}16%{color:#ff9f43;text-shadow:0 0 5px #ff9f43,0 0 12px #ff9f43}33%{color:#ffe66d;text-shadow:0 0 5px #ffe66d,0 0 12px #ffe66d}50%{color:#4dff88;text-shadow:0 0 5px #4dff88,0 0 12px #4dff88}66%{color:#4dd2ff;text-shadow:0 0 5px #4dd2ff,0 0 12px #4dd2ff}83%{color:#c77dff;text-shadow:0 0 5px #c77dff,0 0 12px #c77dff}100%{color:#ff4d6d;text-shadow:0 0 5px #ff4d6d,0 0 12px #ff4d6d}}
+.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 18px;margin-top:12px;font:13px system-ui;color:var(--muted)}.legend b{font: bold 16px Consolas,monospace}.player-color{color:var(--green)}.wall-color{color:#7785a6}.enemy-color{color:var(--red)}.exit-color{color:var(--gold)}
+.status{min-height:48px;display:flex;align-items:center;line-height:1.6;color:#dce5ff;font:14px system-ui}.game-over{color:var(--red);font-weight:bold}.game-win{color:var(--green);font-weight:bold}
+.controls{display:grid;grid-template-columns:repeat(3,62px);grid-template-rows:repeat(2,54px);gap:8px;justify-content:center;margin:12px auto}
+button{border:1px solid #46516d;background:#252d43;color:var(--text);border-radius:10px;font:20px inherit;cursor:pointer;touch-action:manipulation;transition:background .12s,transform .12s}button:hover{background:#35415f}button:active{transform:scale(.94);background:#465675}button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.up{grid-column:2;grid-row:1}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}
+.action-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}.action-row button{padding:10px 16px;font-size:14px}.primary{background:#345b4b;border-color:#4c9471}.primary:hover{background:#40735d}
+.help{font:13px/1.8 system-ui;color:var(--muted)}.help h2{color:var(--text);font-size:16px;margin:0 0 8px}.help p{margin:5px 0}kbd{display:inline-block;background:#101624;color:var(--gold);border:1px solid #424d67;border-radius:4px;padding:1px 5px;font:13px Consolas,monospace}
+@media(max-width:420px){body{padding:14px 8px}.panel{padding:12px}.controls{grid-template-columns:repeat(3,58px)}.stat-value{font-size:17px}}
+</style>
+</head>
+<body>
+<main class="game">
+<header><h1>⚔ 文字地下城</h1><p>DUNGEON QUEST · 回合制冒險</p></header>
+<section class="panel"><div class="stats">
+<div class="stat"><div class="stat-label">❤️ 生命值</div><div class="stat-value" id="hp">10 / 10</div></div>
+<div class="stat"><div class="stat-label">👹 剩餘敵人</div><div class="stat-value" id="enemyCount">3</div></div>
+<div class="stat"><div class="stat-label">⏳ 回合數</div><div class="stat-value" id="turn">0</div></div>
+</div></section>
+<section class="panel"><div class="map-wrap"><pre id="map" aria-label="地下城地圖"></pre></div>
+<div class="legend"><span><b class="player-color">@</b> 玩家</span><span><b class="wall-color">#</b> 牆壁</span><span><b class="enemy-color">E</b> 敵人</span><span><b class="exit-color">X</b> 出口</span><span><b>.</b> 地板</span></div></section>
+<section class="panel"><div class="status" id="message" role="status" aria-live="polite">冒險開始！找到出口 X，小心敵人攻擊。</div>
+<div class="controls" aria-label="觸控移動方向"><button class="up" data-direction="up" aria-label="向上">▲</button><button class="left" data-direction="left" aria-label="向左">◀</button><button class="down" data-direction="down" aria-label="向下">▼</button><button class="right" data-direction="right" aria-label="向右">▶</button></div>
+<div class="action-row"><button id="attack">⚔ 攻擊（空白鍵）</button><button class="primary" id="restart">↻ 重新開始</button></div></section>
+<section class="panel help"><h2>📜 冒險規則</h2>
+<p>• 使用 <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> 或方向鍵移動。</p><p>• 每次成功移動一格，敵人就會行動一次。</p><p>• 撞牆不會移動，也不會消耗回合。</p><p>• 敵人會追蹤玩家，當敵人靠近並碰到你時，生命值會下降！</p><p>• 抵達 <b class="exit-color">X</b> 即可獲勝，小心別被敵人擊敗了。</p></section>
+</main>
+<script>
+"use strict";
+const LEVEL=[
+"###############",
+"#.....#.......#",
+"#.....#..#....#",
+"#..#.....#....#",
+"#..#..........#",
+"#..####..##...#",
+"#.............#",
+"#.##..#.......#",
+"#.....#..#....#",
+"#........#...X#",
+"###############"
+];
+const MAX_HP=10,START_PLAYER={x:1,y:1};
+const START_ENEMIES=[{x:11,y:2},{x:10,y:6},{x:3,y:8}];
+const DIRECTIONS={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+const mapElement=document.getElementById("map"),hpElement=document.getElementById("hp"),enemyCountElement=document.getElementById("enemyCount"),turnElement=document.getElementById("turn"),messageElement=document.getElementById("message");
+let player,enemies,hp,turn,gameState;
+function resetGame(){player={...START_PLAYER};enemies=START_ENEMIES.map(e=>({...e}));hp=MAX_HP;turn=0;gameState="playing";render();setMessage("冒險開始！找到出口 X，小心敵人攻擊。")}
+function isInsideMap(x,y){return y>=0&&y<LEVEL.length&&x>=0&&x<LEVEL[0].length}
+function isWall(x,y){return !isInsideMap(x,y)||LEVEL[y][x]==="#"}
+function isExit(x,y){return LEVEL[y][x]==="X"}
+function enemyAt(x,y){return enemies.some(e=>e.x===x&&e.y===y)}
+function setMessage(message,className=""){messageElement.textContent=message;messageElement.className="status "+className}
+function render(){
+ const display=LEVEL.map(row=>row.split(""));
+ for(const e of enemies)display[e.y][e.x]="E";
+ display[player.y][player.x]="@";
+ // 將玩家符號包在 span 中，讓 CSS 彩虹動畫只套用在主角身上
+ mapElement.innerHTML=display.map((row,y)=>row.map((cell,x)=>{
+  if(x===player.x&&y===player.y)return '<span class="player-tile" aria-label="玩家">@</span>';
+  return cell;
+ }).join(" ")).join("\n");
+ hpElement.textContent=hp+" / "+MAX_HP;hpElement.style.color=hp<=3?"#ff727f":"#6ee7a0";
+ enemyCountElement.textContent=enemies.length;turnElement.textContent=turn;
+ document.querySelectorAll("[data-direction]").forEach(b=>{b.disabled=gameState!=="playing";b.style.opacity=gameState==="playing"?"1":"0.45"});
+ const attackButton=document.getElementById("attack");
+ if(attackButton){attackButton.disabled=gameState!=="playing";attackButton.style.opacity=gameState==="playing"?"1":"0.45";}
+}
+function movePlayer(name){
+ if(gameState!=="playing")return;
+ const d=DIRECTIONS[name];if(!d)return;
+ const nx=player.x+d.x,ny=player.y+d.y;
+ if(isWall(nx,ny)){setMessage("前方是牆壁！換個方向試試。");return}
+ if(enemyAt(nx,ny)){
+  turn++;
+  const target=enemies.find(e=>e.x===nx&&e.y===ny);
+  enemies=enemies.filter(e=>e!==target);
+  const enemyMessage=moveEnemies();
+  if(hp<=0){hp=0;gameState="lost";render();setMessage("💀 你被敵人擊敗了！按「重新開始」再次挑戰。","game-over");return}
+  render();
+  setMessage("⚔ 你擊敗了一名敵人！"+(enemyMessage?" "+enemyMessage:""));
+  return;
+ }
+ player.x=nx;player.y=ny;turn++;
+ if(isExit(player.x,player.y)){gameState="won";render();setMessage("🎉 勝利！你成功逃離地下城，共花費 "+turn+" 回合！","game-win");return}
+ const enemyMessage=moveEnemies();
+ if(hp<=0){hp=0;gameState="lost";render();setMessage("💀 你被敵人擊敗了！按「重新開始」再次挑戰。","game-over");return}
+ render();setMessage(enemyMessage||"繼續前進！尋找出口 X。");
+}
+function attackEnemy(){
+ if(gameState!=="playing")return;
+ const targetIndex=enemies.findIndex(e=>distance(e.x,e.y,player.x,player.y)===1);
+ if(targetIndex===-1){setMessage("附近沒有可以攻擊的敵人。");return}
+ enemies.splice(targetIndex,1);
+ turn++;
+ const enemyMessage=moveEnemies();
+ if(hp<=0){hp=0;gameState="lost";render();setMessage("💀 你被敵人擊敗了！按「重新開始」再次挑戰。","game-over");return}
+ render();
+ setMessage("⚔ 攻擊成功！敵人被擊敗。"+(enemyMessage?" "+enemyMessage:""));
+}
+function distance(x1,y1,x2,y2){return Math.abs(x1-x2)+Math.abs(y1-y2)}
+function moveEnemies(){
+ let damage=0;
+ for(let i=0;i<enemies.length;i++){
+  const e=enemies[i];
+  // 修改：當與敵人相鄰時，扣除生命值
+  if(distance(e.x,e.y,player.x,player.y)===1){
+   damage++;
+   hp -= 1; // 碰到敵人時生命值下降 1 點
+   continue;
+  }
+  const candidates=[{x:e.x,y:e.y-1},{x:e.x-1,y:e.y},{x:e.x,y:e.y+1},{x:e.x+1,y:e.y}];
+  const available=candidates.filter(p=>!isWall(p.x,p.y)&&!(p.x===player.x&&p.y===player.y)&&!enemies.some((other,j)=>j!==i&&other.x===p.x&&other.y===p.y));
+  if(!available.length)continue;
+  available.sort((a,b)=>distance(a.x,a.y,player.x,player.y)-distance(b.x,b.y,player.x,player.y));
+  const choice=available[0];e.x=choice.x;e.y=choice.y;
+ }
+ return damage?`⚠️ 敵人攻擊了你！生命值減少 ${damage} 點。`:"";
+}
+document.addEventListener("keydown",event=>{
+ const key=event.key.toLowerCase(),keys={w:"up",arrowup:"up",s:"down",arrowdown:"down",a:"left",arrowleft:"left",d:"right",arrowright:"right"};
+ if(keys[key]){event.preventDefault();movePlayer(keys[key]);}
+ else if(key===" "){event.preventDefault();attackEnemy();}
+});
+document.querySelectorAll("[data-direction]").forEach(b=>b.addEventListener("click",()=>movePlayer(b.dataset.direction)));
+document.getElementById("attack").addEventListener("click",attackEnemy);
+document.getElementById("restart").addEventListener("click",resetGame);
+resetGame();
+</script>
+</body>
+</html>
